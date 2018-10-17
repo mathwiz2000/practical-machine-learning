@@ -1,0 +1,89 @@
+---
+title: "Practical Machine Learning"
+author: "Jakub Duda"
+date: "10/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(randomForest)
+library(forecast)
+library(caret)
+```
+
+## Data
+
+The original data set is available from <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>.
+
+Our scripts use the following commands to load the data:
+
+```{r}
+training<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testing<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+## Analysis
+
+The data consists of the following fields:
+
+```{r pressure, echo=FALSE}
+colnames(training)
+```
+
+We will filter the fields to include only the acceleration measurements.
+
+```{r}
+newColsIdx<-grep("^accel",colnames(training))
+newCols<-colnames(training)[newColsIdx]
+```
+
+These are the used variables:
+
+```{r echo=FALSE}
+print(newCols)
+```
+
+Now, we filter the data:
+
+```{r}
+training_filter<-training[c("classe",newCols)]
+```
+
+We train the *randomForest* model to predict how well a given activity was performed (variable *classe*). We will use 80% of the training sample for training and the rest for validation.
+
+
+```{r}
+set.seed(2)
+training_filter$train<-(runif(nrow(training))<.8)
+validation=training_filter[training_filter$train==0,]
+acc<-array(NA,10)
+for (i in 1:10)
+{
+  m<-randomForest(classe~.-train,
+        data=training_filter,mtry=i,subset=train)
+  pred<-predict(m,validation)
+  t<-table(pred,validation$classe)
+  acc[i]<-sum(diag(t))/sum(t)
+}
+mtry<-which.max(acc)
+m<-randomForest(classe~.-train,
+        data=training_filter,mtry=mtry,subset=train)
+```
+
+Here is the resulting model chosen to have the maximal accuracy. We varied the number of variables used for each split.
+
+```{r echo=FALSE}
+print(m)
+```
+
+We can use the model to predict on the data from the *testing* set.
+
+```{r}
+testing$train=0
+pred<-predict(m,testing)
+print(pred)
+```
+## Conclusion
+
+We calibrated a random forest model using accelerometer data and calibrated the number of splitting variables by maximizing the accuracy on the validation set.
